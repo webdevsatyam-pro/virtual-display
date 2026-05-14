@@ -219,7 +219,49 @@ def main():
                 prev_x = prev_y = None
                 prev_pts.clear()
 
-          
+            # ── Blend canvas onto frame ──
+            mask    = canvas.astype(bool).any(axis=2)
+            display = frame.copy()
+            display[mask] = cv2.addWeighted(frame, 0.15, canvas, 0.85, 0)[mask]
+
+            # ── Draw UI ──
+            if flash_timer > 0:
+                draw_ui(display, canvas, sel_color_name, brush, mode_text, flash_msg)
+                flash_timer -= 1
+            else:
+                flash_msg = ""
+                draw_ui(display, canvas, sel_color_name, brush, mode_text)
+
+            cv2.imshow(WINDOW_NAME, display)
+
+            key = cv2.waitKey(1) & 0xFF
+
+            # Save
+            if key == ord('s') or key == ord('S'):
+                fname = datetime.now().strftime("drawing_%Y%m%d_%H%M%S.png")
+                fpath = os.path.join(SAVE_FOLDER, fname)
+                # White background + drawing
+                bg = np.full_like(canvas, 255)
+                mask2 = canvas.astype(bool).any(axis=2)
+                bg[mask2] = canvas[mask2]
+                cv2.imwrite(fpath, bg)
+                flash_msg   = f"💾 Saved: {fname}"
+                flash_timer = 80
+                print(f"✅ Drawing saved: {fpath}")
+
+            # Clear
+            elif key == ord('c') or key == ord('C'):
+                canvas[:] = 0
+                flash_msg   = "🗑️  Canvas Clear!"
+                flash_timer = 40
+
+            # Quit
+            elif key in (ord('q'), ord('Q'), 27):
+                break
+
+    cap.release()
+    cv2.destroyAllWindows()
+    print("👋 App band ho gayi. Drawings yahan saved hain:", SAVE_FOLDER)
 
 if __name__ == "__main__":
     print(__doc__)
