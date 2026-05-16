@@ -13,10 +13,10 @@ CONTROLS:
   [Q] / [ESC]               → App band karo
 
 COLOR ZONES (screen ke upar):
-  LEFT  → Laal (Red)
-  MID-L → Neela (Blue)
-  MID-R → Hara (Green)
-  RIGHT → Peela (Yellow)
+  LEFT  → Neon Red
+  MID-L → Neon Blue
+  MID-R → Neon Green
+  RIGHT → Neon Yellow
   FAR-R → Eraser
 """
 
@@ -38,11 +38,11 @@ ERASER_SIZE   = 40
 SMOOTHING     = 5          # kitne points ka average lena hai
 
 COLORS = {
-    "Laal"   : (0,   0,   220),
-    "Neela"  : (220, 60,  20 ),
-    "Hara"   : (20,  180, 20 ),
-    "Peela"  : (20,  220, 220),
-    "Eraser" : None,           # None = eraser
+    "Neon Red"    : (50,  50,  255),
+    "Neon Blue"   : (255, 150, 50 ),
+    "Neon Green"  : (50,  255, 50 ),
+    "Neon Yellow" : (50,  255, 255),
+    "Eraser"      : None,           # None = eraser
 }
 
 COLOR_LIST = list(COLORS.items())   # ordered list
@@ -64,6 +64,19 @@ def fingers_up(lm, hand_label):
     for tip, pip in zip(TIPS[1:], [6, 10, 14, 18]):
         up.append(lm[tip].y < lm[pip].y)
     return up
+
+def draw_neon_line(img, pt1, pt2, color, thickness):
+    """Draws a neon-style line with a glow effect on the canvas."""
+    if color is None:
+        return
+    # We draw multiple layers with the same color on a black canvas.
+    # When blended with addWeighted, it creates a nice glow.
+    # Outer Glow
+    cv2.line(img, pt1, pt2, color, thickness * 4)
+    # Inner Glow
+    cv2.line(img, pt1, pt2, color, thickness * 2)
+    # Core
+    cv2.line(img, pt1, pt2, (255, 255, 255), thickness // 2)
 
 # ─── Helper: UI overlay ────────────────────────────────────────────────────────
 def draw_ui(frame, canvas, sel_color_name, brush, mode_text, msg=""):
@@ -125,7 +138,7 @@ def main():
     h, w = frame.shape[:2]
     canvas = np.zeros((h, w, 3), dtype=np.uint8)   # drawing surface
 
-    sel_color_name = "Laal"
+    sel_color_name = "Neon Red"
     brush          = BRUSH_SIZE
     prev_pts       = []       # smoothing buffer
     flash_msg      = ""
@@ -134,8 +147,9 @@ def main():
 
     with mp_hands.Hands(
         max_num_hands=1,
-        min_detection_confidence=0.7,
-        min_tracking_confidence=0.6
+        model_complexity=1,           # 1 is standard, 2 is more accurate but slower
+        min_detection_confidence=0.8, # Increased for better stability
+        min_tracking_confidence=0.8
     ) as hands:
 
         while True:
@@ -207,10 +221,12 @@ def main():
                                 cv2.circle(frame, (sx, sy), ERASER_SIZE // 2,
                                            (255, 255, 255), 2)
                             else:
-                                cv2.line(canvas, (prev_x, prev_y), (sx, sy),
-                                         cur_color, brush)
-                                cv2.circle(frame, (sx, sy), brush // 2 + 2,
-                                           cur_color, -1)
+                                # Neon Drawing
+                                draw_neon_line(canvas, (prev_x, prev_y), (sx, sy),
+                                               cur_color, brush)
+                                # Show neon dot on frame for feedback
+                                cv2.circle(frame, (sx, sy), brush + 2, cur_color, 2)
+                                cv2.circle(frame, (sx, sy), brush // 2, (255, 255, 255), -1)
                         prev_x, prev_y = sx, sy
 
                     else:
