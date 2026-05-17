@@ -10,6 +10,7 @@ CONTROLS:
   🤟  3 Fingers UP          → Color automatically change karo
   ✊  Mutthi band karo       → Sab kuch erase (clear)
   [+] / [-]                 → Brush size mota / patla karo
+  [F] key                   → Fullscreen on/off karo
   [S] key                   → Drawing save karo
   [C] key                   → Canvas clear karo
   [Q] / [ESC]               → App band karo
@@ -37,7 +38,7 @@ mp_draw  = mp.solutions.drawing_utils
 WINDOW_NAME   = "✏️  Hand Drawing App"
 SAVE_FOLDER   = os.path.expanduser("~/Desktop/HandDrawings")
 BRUSH_SIZE    = 8
-ERASER_SIZE   = 40
+ERASER_SIZE   = 120
 SMOOTHING     = 5          # kitne points ka average lena hai
 
 COLORS = {
@@ -99,26 +100,32 @@ def draw_ui(frame, canvas, sel_color_name, brush, mode_text, msg=""):
     h, w = frame.shape[:2]
     col_w = w // len(COLOR_LIST)
 
-    # Color palette bar at top
+    # Top dark bar background
+    cv2.rectangle(frame, (0, 0), (w, 60), (30, 30, 30), -1)
+
+    # Color palette circles at top
     for i, (name, color) in enumerate(COLOR_LIST):
-        x1, x2 = i * col_w, (i + 1) * col_w
-        bar_color = color if color else (255, 255, 255)
-        cv2.rectangle(frame, (x1, 0), (x2, 60), bar_color, -1)
+        cx = i * col_w + col_w // 2
+        cy = 30
+        radius = 18
 
-        # Hatching for eraser
         if color is None:
-            for k in range(0, 60, 8):
-                cv2.line(frame, (x1, k), (x2, k + 8), (180, 180, 180), 1)
-            cv2.putText(frame, "Eraser", (x1 + 5, 38),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (80, 80, 80), 2)
+            # Eraser icon
+            cv2.circle(frame, (cx, cy), radius, (150, 150, 150), -1)
+            cv2.line(frame, (cx - 8, cy - 8), (cx + 8, cy + 8), (50, 50, 50), 3)
+            
+            # Highlight selected
+            if name == sel_color_name:
+                cv2.circle(frame, (cx, cy), radius + 5, (255, 255, 255), 2)
         else:
-            text_color = (255, 255, 255) if sum(color) < 400 else (30, 30, 30)
-            cv2.putText(frame, name, (x1 + 8, 38),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, text_color, 2)
-
-        # Highlight selected
-        if name == sel_color_name:
-            cv2.rectangle(frame, (x1 + 2, 2), (x2 - 2, 58), (255, 255, 255), 3)
+            # Draw color circle
+            cv2.circle(frame, (cx, cy), radius, color, -1)
+            # Add a subtle border to the circle
+            cv2.circle(frame, (cx, cy), radius, (200, 200, 200), 1)
+            
+            # Highlight selected
+            if name == sel_color_name:
+                cv2.circle(frame, (cx, cy), radius + 5, (255, 255, 255), 3)
 
     # Divider
     cv2.line(frame, (0, 60), (w, 60), (80, 80, 80), 2)
@@ -153,6 +160,11 @@ def main():
 
     h, w = frame.shape[:2]
     canvas = np.zeros((h, w, 3), dtype=np.uint8)   # drawing surface
+
+    # Window setup
+    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(WINDOW_NAME, w, h)
+    is_fullscreen = False
 
     sel_color_name = "Neon Red"
     brush          = BRUSH_SIZE
@@ -248,11 +260,11 @@ def main():
 
                         if prev_x is not None:
                             if cur_color is None:
-                                # Eraser
-                                cv2.line(canvas, (prev_x, prev_y), (sx, sy),
-                                         (0, 0, 0), ERASER_SIZE)
-                                cv2.circle(frame, (sx, sy), ERASER_SIZE // 2,
-                                           (255, 255, 255), 2)
+                                # Eraser (Erasing from canvas using black color)
+                                cv2.line(canvas, (prev_x, prev_y), (sx, sy), (0, 0, 0), ERASER_SIZE)
+                                cv2.circle(canvas, (sx, sy), ERASER_SIZE // 2, (0, 0, 0), -1)
+                                # Show eraser cursor on frame
+                                cv2.circle(frame, (sx, sy), ERASER_SIZE // 2, (255, 255, 255), 2)
                             else:
                                 # Neon Drawing
                                 draw_neon_line(canvas, (prev_x, prev_y), (sx, sy),
@@ -312,6 +324,17 @@ def main():
             elif key == ord('c') or key == ord('C'):
                 canvas[:] = 0
                 flash_msg   = "🗑️  Canvas Clear!"
+                flash_timer = 40
+
+            # Toggle Fullscreen
+            elif key == ord('f') or key == ord('F'):
+                is_fullscreen = not is_fullscreen
+                if is_fullscreen:
+                    cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+                    flash_msg = "🖥️ Full Screen On"
+                else:
+                    cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL)
+                    flash_msg = "🖥️ Windowed Mode"
                 flash_timer = 40
 
             # Quit
