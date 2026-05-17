@@ -8,6 +8,7 @@ CONTROLS:
   ☝️  Sirf Index Finger UP  → Drawing mode (draw karo)
   ✌️  Index + Middle UP     → Move mode (draw nahi hoga)
   ✊  Mutthi band karo       → Sab kuch erase (clear)
+  [+] / [-]                 → Brush size mota / patla karo
   [S] key                   → Drawing save karo
   [C] key                   → Canvas clear karo
   [Q] / [ESC]               → App band karo
@@ -264,6 +265,18 @@ def main():
                 flash_msg   = f"💾 Saved: {fname}"
                 flash_timer = 80
                 print(f"✅ Drawing saved: {fpath}")
+
+            # Brush Size Increase (+)
+            elif key == ord('+') or key == ord('='):
+                brush = min(50, brush + 2)
+                flash_msg = f"🖌️ Brush Size: {brush}px"
+                flash_timer = 30
+
+            # Brush Size Decrease (-)
+            elif key == ord('-') or key == ord('_'):
+                brush = max(2, brush - 2)
+                flash_msg = f"🖌️ Brush Size: {brush}px"
+                flash_timer = 30
 
             # Clear
             elif key == ord('c') or key == ord('C'):
