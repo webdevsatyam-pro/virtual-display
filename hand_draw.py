@@ -7,6 +7,7 @@
 CONTROLS:
   ☝️  Sirf Index Finger UP  → Drawing mode (draw karo)
   ✌️  Index + Middle UP     → Move mode (draw nahi hoga)
+  🤟  3 Fingers UP          → Color automatically change karo
   ✊  Mutthi band karo       → Sab kuch erase (clear)
   [+] / [-]                 → Brush size mota / patla karo
   [S] key                   → Drawing save karo
@@ -25,6 +26,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import os
+import time
 from datetime import datetime
 
 # ─── MediaPipe Setup ───────────────────────────────────────────────────────────
@@ -43,6 +45,9 @@ COLORS = {
     "Neon Blue"   : (255, 150, 50 ),
     "Neon Green"  : (50,  255, 50 ),
     "Neon Yellow" : (50,  255, 255),
+    "Neon Pink"   : (200, 50,  255),
+    "Neon Cyan"   : (255, 255, 50 ),
+    "Neon Purple" : (255, 50,  150),
     "Eraser"      : None,           # None = eraser
 }
 
@@ -67,17 +72,27 @@ def fingers_up(lm, hand_label):
     return up
 
 def draw_neon_line(img, pt1, pt2, color, thickness):
-    """Draws a neon-style line with a glow effect on the canvas."""
+    """Draws an attractive neon-style line with a smooth glow effect."""
     if color is None:
         return
-    # We draw multiple layers with the same color on a black canvas.
-    # When blended with addWeighted, it creates a nice glow.
-    # Outer Glow
-    cv2.line(img, pt1, pt2, color, thickness * 4)
-    # Inner Glow
-    cv2.line(img, pt1, pt2, color, thickness * 2)
-    # Core
-    cv2.line(img, pt1, pt2, (255, 255, 255), thickness // 2)
+        
+    # Layer 1: Extra large outer glow with rounded caps
+    cv2.line(img, pt1, pt2, color, int(thickness * 3.5))
+    cv2.circle(img, pt2, int(thickness * 1.75), color, -1)
+    
+    # Layer 2: Medium glow with rounded caps
+    cv2.line(img, pt1, pt2, color, int(thickness * 1.5))
+    cv2.circle(img, pt2, int(thickness * 0.75), color, -1)
+    
+    # Layer 3: Inner bright core (Lightened version of the color)
+    b, g, r = color
+    light_color = (min(255, b + 100), min(255, g + 100), min(255, r + 100))
+    cv2.line(img, pt1, pt2, light_color, max(1, int(thickness * 0.6)))
+    cv2.circle(img, pt2, max(1, int(thickness * 0.3)), light_color, -1)
+
+    # Layer 4: Pure white center for ultra brightness
+    cv2.line(img, pt1, pt2, (255, 255, 255), max(1, int(thickness * 0.2)))
+    cv2.circle(img, pt2, max(1, int(thickness * 0.1)), (255, 255, 255), -1)
 
 # ─── Helper: UI overlay ────────────────────────────────────────────────────────
 def draw_ui(frame, canvas, sel_color_name, brush, mode_text, msg=""):
@@ -145,6 +160,7 @@ def main():
     flash_msg      = ""
     flash_timer    = 0
     prev_x = prev_y = None
+    last_color_switch = 0     # for 3-finger gesture
 
     with mp_hands.Hands(
         max_num_hands=1,
@@ -196,11 +212,27 @@ def main():
                         mode_text   = "✊ Clear"
 
                     # ── Two fingers up = Move (no draw) ──
-                    elif up[1] and up[2]:
+                    elif up[1] and up[2] and not up[3]:
                         prev_x = prev_y = None
                         mode_text = "✌️  Move Mode"
                         # show cursor dot
                         cv2.circle(frame, (ix, iy), 12, (255, 255, 0), 2)
+                        
+                    # ── Three fingers up = Auto Color Cycle ──
+                    elif up[1] and up[2] and up[3] and not up[4]:
+                        if time.time() - last_color_switch > 0.8:
+                            current_idx = next((i for i, (n, _) in enumerate(COLOR_LIST) if n == sel_color_name), 0)
+                            next_idx = (current_idx + 1) % len(COLOR_LIST)
+                            if COLOR_LIST[next_idx][0] == "Eraser":
+                                next_idx = (next_idx + 1) % len(COLOR_LIST)
+                            
+                            sel_color_name = COLOR_LIST[next_idx][0]
+                            last_color_switch = time.time()
+                            flash_msg = f"🎨 Color Switched: {sel_color_name}"
+                            flash_timer = 30
+                            
+                        prev_x = prev_y = None
+                        mode_text = "🔄 Auto Color Cycle"
 
                     # ── Only index finger = Draw ──
                     elif up[1] and not up[2]:
@@ -236,10 +268,11 @@ def main():
                 prev_x = prev_y = None
                 prev_pts.clear()
 
-            # ── Blend canvas onto frame ──
+            # ── Blend canvas onto frame (Alpha Blending for True Colors) ──
             mask    = canvas.astype(bool).any(axis=2)
             display = frame.copy()
-            display[mask] = cv2.addWeighted(frame, 0.15, canvas, 0.85, 0)[mask]
+            # Background is slightly darkened to make neon colors pop without blowing out to white
+            display[mask] = cv2.addWeighted(frame, 0.4, canvas, 1.0, 0)[mask]
 
             # ── Draw UI ──
             if flash_timer > 0:
@@ -257,11 +290,8 @@ def main():
             if key == ord('s') or key == ord('S'):
                 fname = datetime.now().strftime("drawing_%Y%m%d_%H%M%S.png")
                 fpath = os.path.join(SAVE_FOLDER, fname)
-                # White background + drawing
-                bg = np.full_like(canvas, 255)
-                mask2 = canvas.astype(bool).any(axis=2)
-                bg[mask2] = canvas[mask2]
-                cv2.imwrite(fpath, bg)
+                # Black background to preserve the neon glow effect
+                cv2.imwrite(fpath, canvas)
                 flash_msg   = f"💾 Saved: {fname}"
                 flash_timer = 80
                 print(f"✅ Drawing saved: {fpath}")
